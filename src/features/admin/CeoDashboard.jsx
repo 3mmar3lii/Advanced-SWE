@@ -135,7 +135,7 @@ const navigate = useNavigate();
                 <p className="text-[10px] text-gray-500 uppercase tracking-widest">{currentUser.role}</p>
               </div>
               {/* وهنا صورته */}
-              <img src={currentUser.avatar} alt="Profile" className="w-10 h-10 rounded-full border-2 border-gray-100 shadow-sm" />
+              <img src={currentUser.avatar} alt="Profile" className="w-10 h-10 rounded-full object-cover object-top border-2 border-gray-100 shadow-sm"  />
             </div>
           </div>
         </header>

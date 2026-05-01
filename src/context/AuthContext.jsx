@@ -4,9 +4,9 @@ export const AuthContext = createContext();
 
 // مستخدمين افتراضيين للتجربة
 const defaultUsers = [
-  { id: 1, name: 'Alex Hunter', email: 'ceo@target.com', password: '123', role: 'CEO', avatar: 'https://i.pravatar.cc/150?img=11' },
-  { id: 2, name: 'James Sterling', email: 'cfo@target.com', password: '123', role: 'CFO', avatar: 'https://i.pravatar.cc/150?img=12' },
-  { id: 3, name: 'Coach Miller', email: 'coach@target.com', password: '123', role: 'COACH', avatar: 'https://i.pravatar.cc/150?img=13' },
+  { id: 1, name: 'Alex Hunter', email: 'ceo@target.com', password: '123', role: 'CEO', avatar: 'https://i.pinimg.com/736x/d1/81/e4/d181e44cf0a7d5f9190bc96939da4164.jpg' },
+  { id: 2, name: 'James Sterling', email: 'cfo@target.com', password: '123', role: 'CFO', avatar: 'https://i.pinimg.com/736x/7e/46/c6/7e46c6d2798eff446b365c5246f4c9ca.jpg' },
+  { id: 3, name: 'Coach Miller', email: 'coach@target.com', password: '123', role: 'COACH', avatar: 'https://i.pinimg.com/736x/31/60/6f/31606f66d65555a39beedc3d721b11c2.jpg' },
   { id: 4, name: 'Michael Westbrook', email: 'parent@target.com', password: '123', role: 'PARENT', avatar: 'https://i.pravatar.cc/150?img=14' }
 ];
 

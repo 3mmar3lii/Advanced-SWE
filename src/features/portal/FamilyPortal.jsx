@@ -31,7 +31,7 @@ const FamilyPortal = () => {
       },
       attendance: '94%',
       performance: 'A+',
-      avatar: 'https://i.pravatar.cc/150?img=11'
+      avatar: 'https://i.pinimg.com/736x/aa/dc/28/aadc28262c69a6414334e488c1fc17e9.jpg'
     },
     {
       id: 2,
@@ -45,7 +45,7 @@ const FamilyPortal = () => {
       },
       attendance: '89%',
       performance: 'B',
-      avatar: 'https://i.pravatar.cc/150?img=5'
+      avatar: 'https://i.pinimg.com/736x/56/54/ce/5654ce741046c3299bfedb51f8f187bb.jpg'
     }
   ];
 
@@ -86,7 +86,7 @@ const FamilyPortal = () => {
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-4">
                       <div className="relative">
-                        <img src={member.avatar} alt={member.name} className="w-14 h-14 rounded-full object-cover border-2 border-gray-50" />
+                        <img src={member.avatar} alt={member.name} className="w-14 h-14 rounded-full object-cover object-top border-2 border-gray-50" />
                         <div className="absolute -bottom-1 -right-1 bg-green-500 w-4 h-4 rounded-full border-2 border-white"></div>
                       </div>
                       <div>
