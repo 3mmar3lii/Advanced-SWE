@@ -2,6 +2,8 @@
 
 import connectToDb from '../lib/db';
 import User from '../models/User';
+import Metric from '../models/Metric';
+
 
 
 export async function loginAction(formData) {
@@ -67,6 +69,23 @@ export async function signupAction(formData) {
     return {
       success: false,
       message: 'Failed to create account.'
+    };
+  }
+}
+
+export async function getMetricsAction() {
+  try {
+    await connectToDb();
+    const metrics = await Metric.find({}).sort({ date: 1 });
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(metrics))
+    };
+  } catch (error) {
+    console.error('Fetch metrics error:', error);
+    return {
+      success: false,
+      message: 'Failed to fetch metrics.'
     };
   }
 }
