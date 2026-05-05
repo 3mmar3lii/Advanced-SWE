@@ -1,101 +1,118 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, LockKey, ArrowRight, ShieldCheck, Hexagon, EnvelopeSimple } from '@phosphor-icons/react';
-import { AuthContext } from '../../../src/context/AuthContext';
+import { AuthContext } from '../../context/AuthContext';
+import { User, LockKey, ArrowRight, EnvelopeSimple, Hexagon, CalendarBlank } from '@phosphor-icons/react';
 
 const Login = () => {
   const navigate = useNavigate();
   const { login, signup } = useContext(AuthContext);
   
-  const [isLoginView, setIsLoginView] = useState(true); // للتبديل بين تسجيل الدخول وإنشاء حساب
+  const [isLoginView, setIsLoginView] = useState(true);
   const [error, setError] = useState('');
-  const [formData, setFormData] = useState({ name: '', email: 'ceo@target.com', password: '123', role: 'PARENT' });
+  const [successMsg, setSuccessMsg] = useState('');
+  
+  const [formData, setFormData] = useState({ 
+    name: '', email: 'ceo@target.com', password: '123', role: 'PLAYER', age: '', parentName: '', parentEmail: '' 
+  });
 
-  // توجيه المستخدم حسب دوره
   const redirectBasedOnRole = (role) => {
     if (role === 'CEO' || role === 'CFO') navigate('/admin');
     else if (role === 'COACH') navigate('/coach');
     else navigate('/portal');
   };
 
-  const handleSubmit = (e) => {
+const handleSubmit = async (e) => { // ضفنا كلمة async هنا
     e.preventDefault();
-    setError('');
+    setError(''); setSuccessMsg('');
 
     if (isLoginView) {
-      const res = login(formData.email, formData.password);
+      // ضفنا كلمة await عشان يستنى الرد من فايربيس
+      const res = await login(formData.email, formData.password); 
       if (res.success) redirectBasedOnRole(res.role);
       else setError(res.message);
     } else {
-      if (!formData.name) return setError('Name is required');
-      const res = signup(formData.name, formData.email, formData.password, formData.role);
-      if (res.success) redirectBasedOnRole(res.role);
-      else setError(res.message);
+      if (!formData.name || !formData.email || !formData.password) return setError('Please fill all basic fields');
+      
+      if (formData.role === 'PLAYER') {
+        if (!formData.age) return setError('Age is required for players');
+        if (parseInt(formData.age) < 16 && (!formData.parentName || !formData.parentEmail)) {
+          return setError('Players under 16 must provide Parent/Guardian details.');
+        }
+      }
+
+      // ضفنا كلمة await هنا كمان
+      const res = await signup(formData); 
+      if (res.success) {
+        setSuccessMsg(res.message);
+        setIsLoginView(true); // هيرجعه لشاشة اللوجين ويطبعله الرسالة الخضراء
+      } else {
+        setError(res.message);
+      }
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-[#0f2042] to-[#040b18] text-white">
-      <div className="flex-grow flex flex-col items-center justify-center p-4">
-        <div className="flex flex-col items-center mb-8">
-          <div className="bg-white p-3 rounded-xl mb-4 shadow-lg"><Hexagon weight="fill" className="text-target-red text-3xl" /></div>
-          <h1 className="text-3xl font-bold mb-1">Target Academy</h1>
-          <p className="text-[10px] tracking-[0.2em] text-gray-400 font-semibold uppercase">Elite Performance Portal</p>
-        </div>
+    <div className="min-h-screen flex flex-col bg-[#0b132b] text-white justify-center items-center p-4">
+      <div className="flex flex-col items-center mb-8">
+        <Hexagon weight="fill" className="text-target-red text-4xl mb-2" />
+        <h1 className="text-3xl font-bold">Target Academy</h1>
+      </div>
 
-        <div className="bg-white text-gray-800 w-full max-w-[400px] rounded-2xl p-8 shadow-2xl">
-          {error && <div className="bg-red-50 text-red-500 text-sm p-3 rounded-lg mb-4 text-center font-bold">{error}</div>}
-          
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {!isLoginView && (
-              <div>
-                <label className="block text-[11px] font-bold text-gray-500 mb-2">FULL NAME</label>
+      <div className="bg-white text-gray-800 w-full max-w-[400px] rounded-2xl p-8 shadow-2xl">
+        {error && <div className="bg-red-50 text-red-500 text-sm p-3 rounded-lg mb-4 text-center font-bold">{error}</div>}
+        {successMsg && <div className="bg-green-50 text-green-600 text-sm p-3 rounded-lg mb-4 text-center font-bold">{successMsg}</div>}
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLoginView && (
+            <>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <button type="button" onClick={()=>setFormData({...formData, role: 'PLAYER'})} className={`py-2 rounded-lg text-sm font-bold border transition ${formData.role === 'PLAYER' ? 'bg-target-red text-white border-target-red' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>Player</button>
+                <button type="button" onClick={()=>setFormData({...formData, role: 'PARENT'})} className={`py-2 rounded-lg text-sm font-bold border transition ${formData.role === 'PARENT' ? 'bg-target-red text-white border-target-red' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>Parent</button>
+              </div>
+
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input type="text" placeholder="Full Name" value={formData.name} onChange={(e)=>setFormData({...formData, name: e.target.value})} className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm outline-none focus:border-target-red" />
+              </div>
+
+              {formData.role === 'PLAYER' && (
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input type="text" value={formData.name} onChange={(e)=>setFormData({...formData, name: e.target.value})} className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-target-red focus:ring-1" placeholder="John Doe" />
+                  <CalendarBlank className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input type="number" placeholder="Age" value={formData.age} onChange={(e)=>setFormData({...formData, age: e.target.value})} className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm outline-none focus:border-target-red" />
                 </div>
-              </div>
-            )}
+              )}
 
-            <div>
-              <label className="block text-[11px] font-bold text-gray-500 mb-2">EMAIL ADDRESS</label>
-              <div className="relative">
-                <EnvelopeSimple className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input type="email" value={formData.email} onChange={(e)=>setFormData({...formData, email: e.target.value})} className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-target-red focus:ring-1" placeholder="email@example.com" />
-              </div>
-            </div>
+              {/* حقول ولي الأمر بتظهر لو اللاعب سنه أقل من 16 */}
+              {formData.role === 'PLAYER' && formData.age && parseInt(formData.age) < 16 && (
+                <div className="p-3 bg-red-50 rounded-lg border border-red-100 space-y-3">
+                  <p className="text-[10px] font-bold text-target-red uppercase tracking-wide">Parent / Guardian Required</p>
+                  <input type="text" placeholder="Parent Name" value={formData.parentName} onChange={(e)=>setFormData({...formData, parentName: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-target-red" />
+                  <input type="email" placeholder="Parent Email" value={formData.parentEmail} onChange={(e)=>setFormData({...formData, parentEmail: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:border-target-red" />
+                </div>
+              )}
+            </>
+          )}
 
-            <div>
-              <label className="block text-[11px] font-bold text-gray-500 mb-2">PASSWORD</label>
-              <div className="relative">
-                <LockKey className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input type="password" value={formData.password} onChange={(e)=>setFormData({...formData, password: e.target.value})} className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-target-red focus:ring-1" placeholder="••••••••" />
-              </div>
-            </div>
-
-            {!isLoginView && (
-              <div>
-                <label className="block text-[11px] font-bold text-gray-500 mb-2">I AM A...</label>
-                <select value={formData.role} onChange={(e)=>setFormData({...formData, role: e.target.value})} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-target-red">
-                  <option value="PARENT">Parent / Player</option>
-                  <option value="COACH">Coach</option>
-                </select>
-              </div>
-            )}
-
-            <button type="submit" className="w-full bg-target-red hover:bg-red-700 text-white font-medium py-3 rounded-lg mt-4 flex items-center justify-center gap-2 shadow-md">
-              {isLoginView ? 'Sign In' : 'Create Account'} <ArrowRight weight="bold" />
-            </button>
-          </form>
-
-          <div className="mt-6 pt-6 border-t border-gray-100 text-center">
-            <p className="text-xs text-gray-500">
-              {isLoginView ? "New to the Academy? " : "Already have an account? "}
-              <button onClick={() => setIsLoginView(!isLoginView)} className="text-target-red font-bold hover:underline">
-                {isLoginView ? "Sign Up" : "Log In"}
-              </button>
-            </p>
+          <div className="relative">
+            <EnvelopeSimple className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input type="email" placeholder="Email Address" value={formData.email} onChange={(e)=>setFormData({...formData, email: e.target.value})} className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm outline-none focus:border-target-red" />
           </div>
+
+          <div className="relative">
+            <LockKey className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input type="password" placeholder="Password" value={formData.password} onChange={(e)=>setFormData({...formData, password: e.target.value})} className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm outline-none focus:border-target-red" />
+          </div>
+
+          <button type="submit" className="w-full bg-target-red hover:bg-red-700 text-white font-bold py-3 rounded-lg flex justify-center items-center gap-2">
+            {isLoginView ? 'Sign In' : 'Submit Registration'} <ArrowRight weight="bold" />
+          </button>
+        </form>
+
+        <div className="mt-6 text-center text-sm text-gray-500">
+          {isLoginView ? "Don't have an account? " : "Already registered? "}
+          <button onClick={() => {setIsLoginView(!isLoginView); setError(''); setSuccessMsg('');}} className="text-target-red font-bold hover:underline">
+            {isLoginView ? "Sign Up" : "Log In"}
+          </button>
         </div>
       </div>
     </div>

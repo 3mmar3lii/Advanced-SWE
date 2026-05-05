@@ -1,61 +1,122 @@
 import React, { createContext, useState, useEffect } from 'react';
+import { auth, db } from '../firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { doc, setDoc, getDoc, collection, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
 
 export const AuthContext = createContext();
 
-// مستخدمين افتراضيين للتجربة
-const defaultUsers = [
-  { id: 1, name: 'Alex Hunter', email: 'ceo@target.com', password: '123', role: 'CEO', avatar: 'https://i.pravatar.cc/150?img=11' },
-  { id: 2, name: 'James Sterling', email: 'cfo@target.com', password: '123', role: 'CFO', avatar: 'https://i.pravatar.cc/150?img=12' },
-  { id: 3, name: 'Coach Miller', email: 'coach@target.com', password: '123', role: 'COACH', avatar: 'https://i.pravatar.cc/150?img=13' },
-  { id: 4, name: 'Michael Westbrook', email: 'parent@target.com', password: '123', role: 'PARENT', avatar: 'https://i.pravatar.cc/150?img=14' }
-];
-
 export const AuthProvider = ({ children }) => {
-  // حفظ المستخدمين في اللوكال ستوريدج
-  const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('target_users');
-    return saved ? JSON.parse(saved) : defaultUsers;
-  });
+  const [users, setUsers] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // حفظ المستخدم الحالي اللي فاتح السيستم
-  const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('target_currentUser');
-    return saved ? JSON.parse(saved) : null;
-  });
-
-  useEffect(() => { localStorage.setItem('target_users', JSON.stringify(users)); }, [users]);
+  // 1. مراقبة المستخدم الحالي وقراءة دوره من Firestore
   useEffect(() => {
-    if (currentUser) localStorage.setItem('target_currentUser', JSON.stringify(currentUser));
-    else localStorage.removeItem('target_currentUser');
-  }, [currentUser]);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const docRef = doc(db, 'users', user.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setCurrentUser({ uid: user.uid, ...docSnap.data() });
+        }
+      } else {
+        setCurrentUser(null);
+      }
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
 
-  // دالة تسجيل الدخول
-  const login = (email, password) => {
-    const user = users.find(u => u.email === email && u.password === password);
-    if (user) {
-      setCurrentUser(user);
-      return { success: true, role: user.role };
+  // 2. جلب كل المستخدمين للـ CEO (Real-time)
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
+      setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return unsubscribe;
+  }, []);
+
+  // تسجيل الدخول
+  const login = async (email, password) => {
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+      const userData = userDoc.data();
+
+      if (userData.status === 'Pending') {
+        await signOut(auth); // اخرجه فوراً لو الحساب لسه متوافقش عليه
+        return { success: false, message: 'Your account is waiting for CEO approval.' };
+      }
+      return { success: true, role: userData.role };
+    } catch (error) {
+      return { success: false, message: 'Invalid email or password' };
     }
-    return { success: false, message: 'Invalid email or password' };
   };
 
-  // دالة إنشاء حساب جديد
-  const signup = (name, email, password, role) => {
-    if (users.find(u => u.email === email)) return { success: false, message: 'Email already exists' };
-    const newUser = {
-      id: Date.now(),
-      name, email, password, role,
-      avatar: `https://ui-avatars.com/api/?name=${name.replace(' ', '+')}&background=random` // صورة تلقائية بالاسم
-    };
-    setUsers([...users, newUser]);
-    setCurrentUser(newUser);
-    return { success: true, role };
+  // تسجيل حساب جديد (بينزل Pending)
+  const signup = async (userData) => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
+      
+      const newUser = {
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+        status: 'Pending',
+        age: userData.age || null,
+        parentName: userData.parentName || null,
+        parentEmail: userData.parentEmail || null,
+        avatar: `https://ui-avatars.com/api/?name=${userData.name.replace(' ', '+')}&background=random`
+      };
+
+      // حفظ الداتا الإضافية في Firestore
+      await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
+      await signOut(auth); // اخرجه لحد ما الـ CEO يوافق
+      
+      return { success: true, message: 'Account created! Waiting for Academy approval.' };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
   };
 
-  const logout = () => setCurrentUser(null);
+  // موافقة الـ CEO على الحساب
+  const approveUser = async (userId) => {
+    await updateDoc(doc(db, 'users', userId), { status: 'Active' });
+  };
+
+  // رفض حساب الـ CEO
+  const rejectUser = async (userId) => {
+    await deleteDoc(doc(db, 'users', userId));
+    // ملحوظة: مسح الحساب من Firebase Auth بيحتاج Backend Function، لكن ده كافي للـ UI حالياً
+  };
+
+  // إضافة مدرب من قبل الـ CEO
+  const addCoach = async (coachData) => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, coachData.email, coachData.password);
+      const newCoach = {
+        name: coachData.name,
+        email: coachData.email,
+        role: 'COACH',
+        status: 'Active',
+        avatar: `https://ui-avatars.com/api/?name=${coachData.name.replace(' ', '+')}&background=random`
+      };
+      await setDoc(doc(db, 'users', userCredential.user.uid), newCoach);
+      
+      // نرجعه يعمل تسجيل دخول بحسابه الأصلي كـ CEO (عشان الـ Auth اتغير)
+      alert("Coach created! Please re-login with your CEO credentials to continue.");
+      await signOut(auth);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const logout = () => signOut(auth);
+
+  if (loading) return <div className="h-screen bg-[#0b132b] flex items-center justify-center text-white font-bold">Loading Academy Data...</div>;
 
   return (
-    <AuthContext.Provider value={{ currentUser, login, signup, logout }}>
+    <AuthContext.Provider value={{ currentUser, users, login, signup, logout, approveUser, rejectUser, addCoach }}>
       {children}
     </AuthContext.Provider>
   );

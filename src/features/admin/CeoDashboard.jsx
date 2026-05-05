@@ -9,6 +9,8 @@ import PerformanceView from './views/PerformanceView';
 import FinancialsView from './views/FinancialsView';
 import AthletesView from './views/AthletesView';
 import { AuthContext } from '../../context/AuthContext';
+import CoachesView from '../admin/views/CoachesView';
+import ParentsView from '../admin/views/ParentsView';
 
 const CeoDashboard = () => {
 const navigate = useNavigate();
@@ -62,10 +64,12 @@ const navigate = useNavigate();
     allowedNavItems = allNavItems.filter(item => ['Dashboard', 'Financials', 'Performance'].includes(item.name));
   }
 
-  const renderActiveTab = () => {
+const renderActiveTab = () => {
     switch (activeTab) {
       case 'Dashboard': return <DashboardOverview triggerAction={triggerAction} />;
       case 'Athletes': return <AthletesView triggerAction={triggerAction} />;
+      case 'Coaches': return <CoachesView triggerAction={triggerAction} />; // ضفنا سطر المدربين
+      case 'Parents': return <ParentsView triggerAction={triggerAction} />; // ضفنا سطر الأهالي
       case 'Schedules': return <SchedulesView triggerAction={triggerAction} />;
       case 'Performance': return <PerformanceView triggerAction={triggerAction} />;
       case 'Financials': return <FinancialsView triggerAction={triggerAction} />;

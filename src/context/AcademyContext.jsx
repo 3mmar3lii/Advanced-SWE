@@ -1,65 +1,65 @@
 import React, { createContext, useState, useEffect } from 'react';
+import { db } from '../firebase';
+import { collection, addDoc, deleteDoc, doc, updateDoc, onSnapshot } from 'firebase/firestore';
 
 export const AcademyContext = createContext();
 
-// الداتا المبدئية
-const defaultPlayers = [
-  { id: 1, name: 'Marcus Chen', category: 'U-18 Elite', status: 'Active', parent: 'Sarah Chen' },
-];
-
-const defaultSessions = [
-  { id: 1, title: 'Elite Tactical Drill', type: 'U-18 Elite', time: '10:00 AM - 12:00 PM', coach: 'Coach Miller', field: 'Main Stadium', status: 'Upcoming', day: 'Mon' },
-];
-
-const defaultInvoices = [
-  { id: 'INV-2026-089', name: 'Michael Westbrook', date: 'Oct 24, 2026', amount: '$450.00', status: 'Paid' },
-];
-
 export const AcademyProvider = ({ children }) => {
+  const [players, setPlayers] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [invoices, setInvoices] = useState([]);
 
-  // --- 1. استدعاء آمن جداً من Local Storage ---
-  const [players, setPlayers] = useState(() => {
-    try {
-      const saved = localStorage.getItem('target_academy_players');
-      return saved ? JSON.parse(saved) : defaultPlayers;
-    } catch { return defaultPlayers; }
-  });
+  // ==========================================
+  // جلب البيانات بشكل لحظي من Firebase
+  // ==========================================
+  useEffect(() => {
+    // جلب اللاعبين
+    const unsubPlayers = onSnapshot(collection(db, 'players'), (snapshot) => {
+      setPlayers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
 
-  const [sessions, setSessions] = useState(() => {
-    try {
-      const saved = localStorage.getItem('target_academy_sessions');
-      return saved ? JSON.parse(saved) : defaultSessions;
-    } catch { return defaultSessions; }
-  });
+    // جلب التمارين
+    const unsubSessions = onSnapshot(collection(db, 'sessions'), (snapshot) => {
+      setSessions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
 
-  const [invoices, setInvoices] = useState(() => {
-    try {
-      const saved = localStorage.getItem('target_academy_invoices');
-      return saved ? JSON.parse(saved) : defaultInvoices;
-    } catch { return defaultInvoices; }
-  });
+    // جلب الفواتير
+    const unsubInvoices = onSnapshot(collection(db, 'invoices'), (snapshot) => {
+      setInvoices(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
 
-  // --- 2. الحفظ التلقائي ---
-  useEffect(() => { localStorage.setItem('target_academy_players', JSON.stringify(players)); }, [players]);
-  useEffect(() => { localStorage.setItem('target_academy_sessions', JSON.stringify(sessions)); }, [sessions]);
-  useEffect(() => { localStorage.setItem('target_academy_invoices', JSON.stringify(invoices)); }, [invoices]);
+    return () => { unsubPlayers(); unsubSessions(); unsubInvoices(); };
+  }, []);
 
-  // --- 3. دوال الـ CRUD ---
-  const addPlayer = (newPlayer) => setPlayers([{ ...newPlayer, id: Date.now() }, ...players]);
-  const deletePlayer = (id) => setPlayers(players.filter(player => player.id !== id));
 
-  const addSession = (newSession) => setSessions([{ ...newSession, id: Date.now(), status: 'Upcoming' }, ...sessions]);
-  const deleteSession = (id) => setSessions(sessions.filter(session => session.id !== id));
-  
-  // دالة جديدة لتحديث حالة التمرين (Upcoming, In Progress, Completed)
-  const updateSessionStatus = (id, newStatus) => {
-    setSessions(sessions.map(session => session.id === id ? { ...session, status: newStatus } : session));
+  // ==========================================
+  // دوال الـ CRUD الحقيقية (بتكلم Firebase)
+  // ==========================================
+
+  const addPlayer = async (newPlayer) => {
+    await addDoc(collection(db, 'players'), newPlayer);
   };
 
-  const addInvoice = (newInvoice) => {
+  const deletePlayer = async (id) => {
+    await deleteDoc(doc(db, 'players', id));
+  };
+
+  const addSession = async (newSession) => {
+    await addDoc(collection(db, 'sessions'), { ...newSession, status: 'Upcoming' });
+  };
+
+  const deleteSession = async (id) => {
+    await deleteDoc(doc(db, 'sessions', id));
+  };
+  
+  const updateSessionStatus = async (id, newStatus) => {
+    await updateDoc(doc(db, 'sessions', id), { status: newStatus });
+  };
+
+  const addInvoice = async (newInvoice) => {
     const newId = `INV-2026-${Math.floor(Math.random() * 900) + 100}`;
     const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    setInvoices([{ ...newInvoice, id: newId, date: today }, ...invoices]);
+    await addDoc(collection(db, 'invoices'), { ...newInvoice, invoiceId: newId, date: today });
   };
 
   return (
