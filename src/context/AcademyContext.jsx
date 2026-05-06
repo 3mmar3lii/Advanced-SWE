@@ -8,53 +8,53 @@ export const AcademyProvider = ({ children }) => {
   const [players, setPlayers] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [invoices, setInvoices] = useState([]);
+  const [events, setEvents] = useState([]); 
+  const [users, setUsers] = useState([]); // ✅ ضفنا الـ users هنا
 
-  // ==========================================
-  // جلب البيانات بشكل لحظي من Firebase
-  // ==========================================
   useEffect(() => {
-    // جلب اللاعبين
+    // جلب كل المستخدمين (آباء - مدربين - إدارة)
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    const unsubEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
+      setEvents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
     const unsubPlayers = onSnapshot(collection(db, 'players'), (snapshot) => {
       setPlayers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    // جلب التمارين
     const unsubSessions = onSnapshot(collection(db, 'sessions'), (snapshot) => {
       setSessions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    // جلب الفواتير
     const unsubInvoices = onSnapshot(collection(db, 'invoices'), (snapshot) => {
       setInvoices(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    return () => { unsubPlayers(); unsubSessions(); unsubInvoices(); };
+    // ✅ ضفنا unsubUsers في التنظيف عشان الميموري
+    return () => { unsubUsers(); unsubEvents(); unsubPlayers(); unsubSessions(); unsubInvoices(); };
   }, []);
 
-
-  // ==========================================
-  // دوال الـ CRUD الحقيقية (بتكلم Firebase)
-  // ==========================================
-
-  const addPlayer = async (newPlayer) => {
-    await addDoc(collection(db, 'players'), newPlayer);
+  const addPlayer = async (playerData) => {
+    await addDoc(collection(db, 'players'), {
+      ...playerData,
+      status: 'Active', 
+      role: 'PLAYER', 
+      avatar: `https://ui-avatars.com/api/?name=${playerData.name.replace(' ', '+')}&background=random`
+    });
   };
 
-  const deletePlayer = async (id) => {
-    await deleteDoc(doc(db, 'players', id));
-  };
-
-  const addSession = async (newSession) => {
-    await addDoc(collection(db, 'sessions'), { ...newSession, status: 'Upcoming' });
-  };
-
-  const deleteSession = async (id) => {
-    await deleteDoc(doc(db, 'sessions', id));
-  };
+  const deletePlayer = async (id) => { await deleteDoc(doc(db, 'players', id)); };
   
-  const updateSessionStatus = async (id, newStatus) => {
-    await updateDoc(doc(db, 'sessions', id), { status: newStatus });
-  };
+  const updatePlayer = async (id, updatedData) => { await updateDoc(doc(db, 'players', id), updatedData); };
+
+  const addSession = async (newSession) => { await addDoc(collection(db, 'sessions'), { ...newSession, status: 'Upcoming' }); };
+  const deleteSession = async (id) => { await deleteDoc(doc(db, 'sessions', id)); };
+  const updateSessionStatus = async (id, newStatus) => { await updateDoc(doc(db, 'sessions', id), { status: newStatus }); };
+
+  const addEvent = async (eventData) => { await addDoc(collection(db, 'events'), eventData); };
 
   const addInvoice = async (newInvoice) => {
     const newId = `INV-2026-${Math.floor(Math.random() * 900) + 100}`;
@@ -64,8 +64,10 @@ export const AcademyProvider = ({ children }) => {
 
   return (
     <AcademyContext.Provider value={{ 
-      players, addPlayer, deletePlayer, 
+      users, // ✅ مررنا الـ users هنا عشان شاشات الـ CEO تقرأها
+      players, addPlayer, deletePlayer, updatePlayer, 
       sessions, addSession, deleteSession, updateSessionStatus,
+      events, addEvent, 
       invoices, addInvoice 
     }}>
       {children}

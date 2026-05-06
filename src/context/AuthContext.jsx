@@ -1,23 +1,29 @@
 import React, { createContext, useState, useEffect } from 'react';
 import { auth, db } from '../firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, getDoc, collection, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged 
+} from 'firebase/auth';
+import { doc, setDoc, getDoc, collection, addDoc } from 'firebase/firestore';
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 1. مراقبة المستخدم الحالي وقراءة دوره من Firestore
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        // نجيب بيانات اليوزر (الدور والاسم) من فايربيس
         const docRef = doc(db, 'users', user.uid);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setCurrentUser({ uid: user.uid, ...docSnap.data() });
+          setCurrentUser({ uid: user.uid, email: user.email, ...docSnap.data() });
+        } else {
+          setCurrentUser(user);
         }
       } else {
         setCurrentUser(null);
@@ -27,97 +33,95 @@ export const AuthProvider = ({ children }) => {
     return unsubscribe;
   }, []);
 
-  // 2. جلب كل المستخدمين للـ CEO (Real-time)
-  useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
-      setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-    return unsubscribe;
-  }, []);
+// داخل AuthContext.jsx -> دالة signup
+const signup = async (formData) => {
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+    const user = userCredential.user;
+    const avatarUrl = `https://ui-avatars.com/api/?name=${formData.name.replace(' ', '+')}&background=random`;
 
-  // تسجيل الدخول
-  const login = async (email, password) => {
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
-      const userData = userDoc.data();
+    // 1. حساب اللاعب الأساسي
+await setDoc(doc(db, 'users', user.uid), {
+  name: formData.name,
+  email: formData.email,
+  role: formData.role,
+  avatar: avatarUrl,
+  age: formData.age || null,
+  status: 'Pending' // 👈 ضيف السطر ده عشان الحساب ينزل معلق
+});
 
-      if (userData.status === 'Pending') {
-        await signOut(auth); // اخرجه فوراً لو الحساب لسه متوافقش عليه
-        return { success: false, message: 'Your account is waiting for CEO approval.' };
-      }
-      return { success: true, role: userData.role };
-    } catch (error) {
-      return { success: false, message: 'Invalid email or password' };
-    }
-  };
-
-  // تسجيل حساب جديد (بينزل Pending)
-  const signup = async (userData) => {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
-      
-      const newUser = {
-        name: userData.name,
-        email: userData.email,
-        role: userData.role,
+    // 2. لو لاعب، نبعته للـ CEO
+    if (formData.role === 'PLAYER') {
+      await addDoc(collection(db, 'players'), {
+        name: formData.name,
+        email: formData.email,
+        parentEmail: formData.parentEmail || '',
         status: 'Pending',
-        age: userData.age || null,
-        parentName: userData.parentName || null,
-        parentEmail: userData.parentEmail || null,
-        avatar: `https://ui-avatars.com/api/?name=${userData.name.replace(' ', '+')}&background=random`
-      };
+        category: 'Unassigned',
+        rating: 0,
+        avatar: avatarUrl
+      });
 
-      // حفظ الداتا الإضافية في Firestore
-      await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
-      await signOut(auth); // اخرجه لحد ما الـ CEO يوافق
-      
-      return { success: true, message: 'Account created! Waiting for Academy approval.' };
-    } catch (error) {
-      return { success: false, message: error.message };
+      // 🌟 التعديل الجديد: لو اللاعب صغير، ننشئ سجل للأب في Users عشان يظهر في الـ Parents Tab
+      if (formData.age && parseInt(formData.age) < 16 && formData.parentEmail) {
+        // بنستخدم setDoc مع إيميل الأب كـ ID عشان ميتكررش لو عنده كذا ابن
+        await setDoc(doc(db, 'users', `parent_${formData.parentEmail}`), {
+          name: formData.parentName || 'New Parent',
+          email: formData.parentEmail,
+          role: 'PARENT',
+          avatar: `https://ui-avatars.com/api/?name=${formData.parentName?.replace(' ', '+') || 'P'}&background=888`
+        }, { merge: true }); // merge عشان ميمسحش بيانات قديمة لو الأب موجود فعلاً
+      }
     }
-  };
+    return { success: true, message: 'Created successfully!' };
+  } catch (error) {
+    return { success: false, message: error.message };
+  }
+};
 
-  // موافقة الـ CEO على الحساب
-  const approveUser = async (userId) => {
-    await updateDoc(doc(db, 'users', userId), { status: 'Active' });
-  };
+// داخل AuthContext.jsx
+const login = async (email, password) => {
+  try {
+    // 1. تسجيل الدخول عن طريق فايربيس
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
 
-  // رفض حساب الـ CEO
-  const rejectUser = async (userId) => {
-    await deleteDoc(doc(db, 'users', userId));
-    // ملحوظة: مسح الحساب من Firebase Auth بيحتاج Backend Function، لكن ده كافي للـ UI حالياً
-  };
+    // 2. جلب بيانات المستخدم من Firestore
+    const userDocRef = doc(db, 'users', user.uid);
+    const userSnapshot = await getDoc(userDocRef);
 
-  // إضافة مدرب من قبل الـ CEO
-  const addCoach = async (coachData) => {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, coachData.email, coachData.password);
-      const newCoach = {
-        name: coachData.name,
-        email: coachData.email,
-        role: 'COACH',
-        status: 'Active',
-        avatar: `https://ui-avatars.com/api/?name=${coachData.name.replace(' ', '+')}&background=random`
-      };
-      await setDoc(doc(db, 'users', userCredential.user.uid), newCoach);
+    if (userSnapshot.exists()) {
+      const userData = userSnapshot.data();
+
+      // 🛑 3. نقطة التفتيش: لو الحساب معلق، نمنعه من الدخول
+      if (userData.status === 'Pending') {
+        await signOut(auth); // نعمله تسجيل خروج فوراً
+        return { 
+          success: false, 
+          message: 'Access Denied: Your account is pending admin approval. Please wait.' 
+        };
+      }
+
+      // لو الحساب Active أو مفيش فيه مشكلة، نفتحله الداشبورد
+      setCurrentUser({ uid: user.uid, ...userData });
+      return { success: true, role: userData.role };
       
-      // نرجعه يعمل تسجيل دخول بحسابه الأصلي كـ CEO (عشان الـ Auth اتغير)
-      alert("Coach created! Please re-login with your CEO credentials to continue.");
+    } else {
       await signOut(auth);
-      return true;
-    } catch (error) {
-      return false;
+      return { success: false, message: 'User profile not found in database.' };
     }
+  } catch (error) {
+    return { success: false, message: 'Invalid email or password.' };
+  }
+};
+
+  const logout = async () => {
+    await signOut(auth);
   };
-
-  const logout = () => signOut(auth);
-
-  if (loading) return <div className="h-screen bg-[#0b132b] flex items-center justify-center text-white font-bold">Loading Academy Data...</div>;
 
   return (
-    <AuthContext.Provider value={{ currentUser, users, login, signup, logout, approveUser, rejectUser, addCoach }}>
-      {children}
+    <AuthContext.Provider value={{ currentUser, signup, login, logout }}>
+      {!loading && children}
     </AuthContext.Provider>
   );
 };
